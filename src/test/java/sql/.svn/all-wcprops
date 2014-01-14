@@ -1,0 +1,17 @@
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/p/openinfinity/code-0/!svn/ver/5/trunk/releases/1.0.0/open-infinity-core/src/test/java/sql
+END
+schema.sql
+K 25
+svn:wc:ra_dav:version-url
+V 102
+/p/openinfinity/code-0/!svn/ver/5/trunk/releases/1.0.0/open-infinity-core/src/test/java/sql/schema.sql
+END
+test-data.sql
+K 25
+svn:wc:ra_dav:version-url
+V 105
+/p/openinfinity/code-0/!svn/ver/5/trunk/releases/1.0.0/open-infinity-core/src/test/java/sql/test-data.sql
+END

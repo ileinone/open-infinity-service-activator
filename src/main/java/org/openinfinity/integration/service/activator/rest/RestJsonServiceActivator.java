@@ -1,0 +1,204 @@
+/*
+ * Copyright (c) 2006-2013 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.openinfinity.integration.service.activator.rest;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+import org.openinfinity.core.exception.ApplicationException;
+import org.openinfinity.core.exception.BusinessViolationException;
+import org.openinfinity.core.exception.SystemException;
+import org.openinfinity.integration.message.MessageHeader;
+import org.openinfinity.integration.message.ServiceRequestMessage;
+import org.openinfinity.integration.message.ServiceResponseMessage;
+import org.openinfinity.integration.service.activator.CRUDOperations;
+import org.openinfinity.integration.service.activator.ServiceActivator;
+import org.openinfinity.integration.service.activator.proxy.ServiceActivatorInvocationHandler;
+import org.openinfinity.integration.service.mapper.InterfaceMethodToOperationMapper;
+import org.openinfinity.integration.service.mapper.InterfaceToLocationMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Scope;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.json.MappingJacksonHttpMessageConverter;
+import org.springframework.stereotype.Component;
+import org.springframework.util.ReflectionUtils;
+import org.springframework.web.client.RestTemplate;
+
+/**
+ * This class is responsible for:
+ * <ul>
+ * <li></li>
+ * </ul>
+ *
+ * @author Ilkka Leinonen
+ * @version 1.0.0.RELEASE
+ * @since 1.0.0.RELEASE
+ */
+@Component
+@Qualifier("restJsonServiceActivator")
+@Scope("prototype")
+public class RestJsonServiceActivator implements ServiceActivator {
+
+	//@Autowired
+	private InterfaceToLocationMapper interfaceToLocationMapper;
+
+	//@Autowired
+	private InterfaceMethodToOperationMapper interfaceMethodToOperationMapper; 
+	
+	private String identifierField;
+	
+	@Override
+	public ServiceActivator getServiceActivator() {
+		return this;
+	}
+
+	@Override
+	public <RequestMessage, ResponseMessage> ResponseMessage activate(RequestMessage requestMessage) throws BusinessViolationException, SystemException, ApplicationException {
+		// Setting up the RestTemplate
+		RestTemplate restTemplate = createRestTemplate();
+		// Fetching the method information from the service request object
+		ServiceRequestMessage<RequestMessage> serviceRequestMessage = (ServiceRequestMessage<RequestMessage>)requestMessage;
+		MessageHeader<Method> methodHeader = (MessageHeader<Method>) serviceRequestMessage.getMessageHeaderByName("method");
+		Method method = methodHeader.getValue();
+		Class<?> returnType = method.getReturnType();
+		
+		MessageHeader<Object> messageHeaderForProxyInterface = (MessageHeader<Object>)serviceRequestMessage.getMessageHeaderByName("proxy");
+		Proxy proxyInterface =  (Proxy)messageHeaderForProxyInterface.getValue();
+		
+		ServiceActivatorInvocationHandler serviceActivatorInvocationHandler = (ServiceActivatorInvocationHandler) Proxy.getInvocationHandler(proxyInterface);
+		
+		String baseLocation = interfaceToLocationMapper.getLocationForInterface(serviceActivatorInvocationHandler.getInterfaceClass());
+		//baseLocation = "http://localhost:8080/domainservices/services/accountservice";//locationToInterfaceMapper.getLocationForInterface(proxyInterface);
+		
+		System.out.println("#################################################### new proxy interface class: " + serviceActivatorInvocationHandler.getInterfaceClass());
+		System.out.println("#################################################### proxy interface class: " + proxyInterface.getClass().getName());
+	
+		Method executedMethod = methodHeader.getValue();
+		String methodName = executedMethod.getName();
+		System.out.println("!?!?!?!?!?!?!?!?! METHOD: " + methodName);
+		// Defining the url to be called
+		String url = baseLocation;
+		Object actualMessage = null;
+		if (serviceRequestMessage.getPayload() instanceof Object[]) {
+			Object[] payloadObjects = (Object[])serviceRequestMessage.getPayload();
+			if (payloadObjects.length == 1) {
+				actualMessage = payloadObjects[0];
+				System.out.println("#################################################### actual message is object[0]");				
+			} else {
+				actualMessage = payloadObjects;
+				System.out.println("#################################################### actual message is object array");
+			}
+			//List<Object> objects = (List<Object>) Arrays.asList(serviceRequestMessage.getPayload());
+			//actualMessage = objects.get(0);
+			//Object[] objects = (Object[])serviceRequestMessage.getPayload();
+		} else {
+			System.out.println("????????????????????????????????????? Plain object");
+		}
+		Class<?> serializableClass = null;
+		try {
+			serializableClass = Class.forName(serviceActivatorInvocationHandler.getInterfaceClass());
+		} catch (ClassNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		//System.out.println("########################################## actualmessage: " + (actualMessage == null ? actualMessage.toString() : "No message"));
+		
+		System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! return type: " +returnType);
+		if (methodName.equalsIgnoreCase(CRUDOperations.CREATE.replaceAll("/", ""))) {
+			url += CRUDOperations.CREATE;
+			System.out.println("!?!?!!?!?!??! == =  URL " + url);
+			System.out.println(actualMessage.toString() + " " + actualMessage.getClass().getCanonicalName());
+			URI uri = restTemplate.postForLocation(url, actualMessage);
+			String identifier = uri.toString();
+			int index = identifier.lastIndexOf("/");
+			identifier = identifier.substring(index+1);
+			Object response = Long.parseLong(identifier);
+			//Object response = restTemplate.getForObject(uri, returnType);
+			ServiceResponseMessage<?> serviceResponseMessage = new ServiceResponseMessage<Object>(response);
+			return (ResponseMessage)serviceResponseMessage;
+		} else if (methodName.equalsIgnoreCase(CRUDOperations.UPDATE.replaceAll("/", ""))) {
+			url += CRUDOperations.UPDATE;
+			restTemplate.put(url, serviceRequestMessage.getPayload());
+			ServiceResponseMessage<?> serviceResponseMessage = new ServiceResponseMessage<Object>(null);
+			return (ResponseMessage)serviceResponseMessage;
+		} else if (methodName.equalsIgnoreCase(CRUDOperations.LOAD_ALL.replaceAll("/", ""))) {
+			System.out.println("#################################### entered loadall");
+			url += CRUDOperations.LOAD_ALL;
+			Object[] responseArray = restTemplate.getForObject(url, Object[].class);
+			Collection<Object> responseObjectCollection = new ArrayList<Object>();
+			for (Object o : responseArray) responseObjectCollection.add(o);
+			ServiceResponseMessage<?> serviceResponseMessage = new ServiceResponseMessage<Object>(responseObjectCollection);
+			return (ResponseMessage)serviceResponseMessage;
+		} else if (methodName.equalsIgnoreCase(CRUDOperations.LOAD_BY_ID)) {
+			url += CRUDOperations.LOAD_BY_ID + "/" + findIdentifier(serviceRequestMessage.getPayload());
+			System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! return type: " +returnType);
+			Object response = restTemplate.getForObject(url, returnType);
+			ServiceResponseMessage<?> serviceResponseMessage = new ServiceResponseMessage<Object>(response);
+			return (ResponseMessage)serviceResponseMessage;
+		} else if (methodName.equalsIgnoreCase(CRUDOperations.DELETE)) {
+			url += CRUDOperations.DELETE + "/" + findIdentifier(serializableClass);
+			restTemplate.delete(url);	
+			ServiceResponseMessage<?> serviceResponseMessage = new ServiceResponseMessage<Object>(null);
+			return (ResponseMessage)serviceResponseMessage;
+		}
+		throw new SystemException("Method not defined for rest object or id is missing.");
+		
+	}
+
+	private RestTemplate createRestTemplate() {
+		RestTemplate restTemplate = new RestTemplate();
+		List<HttpMessageConverter<?>> converters = new ArrayList<HttpMessageConverter<?>>();
+		converters.add(new MappingJacksonHttpMessageConverter()); 
+		restTemplate.setMessageConverters(converters);
+		return restTemplate;
+	}
+	
+	private String findIdentifier(Object payload) {
+		String identifier = "id";
+		if (identifierField != null) identifier = identifierField;
+		Field stringField = ReflectionUtils.findField(String.class, identifier);
+		if (stringField != null) return getValueForField(stringField, payload).toString();
+		Field integerField = ReflectionUtils.findField(Integer.class, identifier);
+		if (integerField != null) return getValueForField(integerField, payload).toString();
+		Field longField = ReflectionUtils.findField(Long.class, identifier);
+		if (longField != null) return getValueForField(longField, payload).toString();
+		return null;
+	}
+	
+	private Object getValueForField(Field field, Object payload) {
+		if (field != null && !field.isAccessible()) {
+			field.setAccessible(Boolean.TRUE);
+			try {
+				// TODO implement a cache.
+				return field.get(payload);
+			} catch (IllegalArgumentException e) {
+				// TODO log to a file
+				e.printStackTrace();
+			} catch (IllegalAccessException e) {
+				// TODO log to a file
+				e.printStackTrace();
+			}
+		}
+		return null;
+	}
+
+}

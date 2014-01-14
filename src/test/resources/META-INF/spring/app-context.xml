@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:jee="http://www.springframework.org/schema/jee" xmlns:jms="http://www.springframework.org/schema/jms"
+	xmlns:lang="http://www.springframework.org/schema/lang" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:tx="http://www.springframework.org/schema/tx" xmlns:util="http://www.springframework.org/schema/util"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+              http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+              http://www.springframework.org/schema/aop
+              http://www.springframework.org/schema/aop/spring-aop-3.0.xsd
+              http://www.springframework.org/schema/context
+              http://www.springframework.org/schema/context/spring-context-3.0.xsd
+              http://www.springframework.org/schema/jee
+              http://www.springframework.org/schema/jee/spring-jee-3.0.xsd
+              http://www.springframework.org/schema/jms
+              http://www.springframework.org/schema/jms/spring-jms-3.0.xsd
+              http://www.springframework.org/schema/lang
+              http://www.springframework.org/schema/lang/spring-lang-3.0.xsd
+              http://www.springframework.org/schema/tx
+              http://www.springframework.org/schema/tx/spring-tx-3.0.xsd
+              http://www.springframework.org/schema/util
+              http://www.springframework.org/schema/util/spring-util-3.0.xsd">
+
+	<context:annotation-config />
+
+	<bean id="testService1ProxyFactory"
+		class="org.openinfinity.integration.service.activator.proxy.ProxyFactory"
+		factory-method="newInstance" scope="singleton">
+		<!-- test org.wide.engine.FooService -->
+		<constructor-arg type="java.lang.Class"
+			value="org.openinfinity.integration.service.activator.stubs.TestService" />
+		<constructor-arg>
+			<bean id="testService1ActivatorInvocationHandler"
+				class="org.openinfinity.integration.service.activator.proxy.ServiceActivatorInvocationHandler">
+				<constructor-arg>
+					<bean class="org.openinfinity.integration.service.activator.stubs.ServiceActivatorImpl" />
+				</constructor-arg>
+			</bean>
+		</constructor-arg>
+	</bean>
+		
+	<bean id="accountServiceProxyFactory"
+		class="org.wide.engine.integration.activator.proxy.ProxyFactory"
+		factory-method="newInstance" scope="singleton">
+		<!-- test org.wide.engine.FooService -->
+		<constructor-arg type="java.lang.Class"
+			value="org.openinfinity.integration.service.activator.stubs.AccountService" />
+		<constructor-arg>
+			<bean id="accountServiceActivatorInvocationHandler"
+				class="org.openinfinity.integration.service.activator.proxy.ServiceActivatorInvocationHandler">
+				<constructor-arg>
+					<bean
+						class="org.openinfinity.integration.service.activator.stubs.AccountServiceServiceActivator" />
+				</constructor-arg>
+			</bean>
+		</constructor-arg>
+	</bean>
+
+	<bean
+		class="org.openinfinity.integration.service.activator.ServiceActivatorBeanPostProcessor">
+		<property name="serviceActivatorRegistry" ref="serviceActivatorRegistry" />
+	</bean>
+
+	<bean id="serviceActivatorRegistry"
+		class="org.openinfinity.integration.service.activator.MemoryServiceActivatorRegistry">
+		<property name="serviceActivators">
+			<list>
+				<ref bean="testService1ProxyFactory" />
+				<!-- <ref bean="testService2ProxyFactory" /> -->
+				<ref bean="accountServiceProxyFactory" />
+			</list>
+		</property>
+	</bean>
+
+	<bean id="service" class="org.openinfinity.integration.service.activator.stubs.ExampleService" />
+
+	<context:component-scan base-package="org.openinfinity.integration" />
+
+	<aop:aspectj-autoproxy />
+
+<!-- 	<bean id="parallelServiceActivatorAspect" -->
+<!-- 		class="org.wide.engine.integration.spring.parallel.ParallelServiceActivatorAspect" /> -->
+
+
+<!-- 	<bean -->
+<!-- 		class="org.wide.engine.integration.spring.parallel.ParallelAnnotationBeanPostProcessor"> -->
+<!-- 		<property name="parellelRegistry" ref="memoryParallelRegistry" /> -->
+<!-- 	</bean> -->
+
+<!-- 	<bean id="memoryParallelRegistry" -->
+<!-- 		class="org.wide.engine.integration.spring.parallel.MemoryParallelRegistry" /> -->
+	
+
+<!-- tämä instassi pitää jakaa aspektin ja serviceactivatorinvocationhandlerin kesken. jälkimmäisessä pitää polkaista invoke met -->
+<!-- <bean id="taskExecutorFactoryBean" class="org.springframework.scheduling.config.TaskExecutorFactoryBean"/> -->
+
+<!-- 	<bean id="testService2ProxyFactory"
+		class="org.wide.engine.integration.activator.proxy.ProxyFactory"
+		factory-method="newInstance" scope="singleton">
+		test org.wide.engine.FooService
+		<constructor-arg type="java.lang.Class"
+			value="org.wide.engine.testcomponents.FooService" />
+		<constructor-arg>
+			<bean id="testService2ActivatorInvocationHandler"
+				class="org.wide.engine.integration.activator.proxy.ServiceActivatorInvocationHandler">
+				<constructor-arg>
+					<bean class="org.wide.engine.testcomponents.ServiceActivatorImpl" />
+				</constructor-arg>
+			</bean>
+		</constructor-arg>
+	</bean> -->
+
+
+
+</beans>
